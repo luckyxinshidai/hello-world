@@ -2,7 +2,7 @@
   "job_name": "kvm-test",
   "device_type": "d02",
   "timeout": 1800,
-  "actions":[
+  "actions": [
     {
       "command": "deploy_linaro_image",
       "parameters":
