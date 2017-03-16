@@ -1,6 +1,6 @@
 ## Installing Debian "Jessie" 8.5
 
-This guide is not to be a replacement of the official Debian Installer documentation, but instead be a quick walkthrough for the network installer. You can find the original documentation at [https://www.debian.org/releases/jessie/arm64/index.html.en](https://www.debian.org/releases/jessie/arm64/index.html.en)
+This guide is not to be a replacement of the linaro official Debian Installer documentation, but instead be a quick walkthrough for the network installer who works in the network environment of estuary openlab1/openlab2. You can find the original documentation at [https://github.com/Linaro/documentation/blob/master/Reference-Platform/EECommon/Install-Debian-Jessie.md](https://github.com/Linaro/documentation/blob/master/Reference-Platform/EECommon/Install-Debian-Jessie.md)
 
 ### Debian Installer
 
@@ -11,12 +11,15 @@ Our custom installer changes nothing more than the kernel, and you can also find
 ## Loading debian-installer from the network
 ### Setting up the TFTP server
 
-Back to your dnsmasq server (check [this link](../DHCP-TFTP-Server-UEFI.md) for instructions on how to setup your own TFTP/DCHP server), download the required Debian installer files at your tftp-root directory. In this example, this directory is configured to `/srv/tftp`.
+About how to setting the TFTP and DHCP server please refer to [Setup_PXE_Env_on_Host.md](https://github.com/open-estuary/estuary/blob/master/doc/Setup_PXE_Env_on_Host.4All.md).download the required Debian installer files at your tftp-root directory. In this example, this directory is configured to /srv/tftp.
 
 Since the kernel, initrd and GRUB 2 is part of the debian-installer tarball (`netboot.tar.gz`), that is the only file you will need to download and use.
 
-#### Downloading debian-installer:
+#### Downloading debian-installer and the newest uefi:
 
+Make sure that everytime you get the newest version,please consult your superiors.
+UEFI:[https://builds.96boards.org/snapshots/reference-platform/components/uefi/latest/debug/d03/](https://builds.96boards.org/snapshots/reference-platform/components/uefi/latest/debug/d03/).How to update the UEFI please refer to [https://github.com/open-estuary/estuary/blob/master/doc/UEFI_Manual.4D03.md](https://github.com/open-estuary/estuary/blob/master/doc/UEFI_Manual.4D03.md)
+Debian Installer:[https://builds.96boards.org/snapshots/reference-platform/components/debian-installer-staging/latest/](https://builds.96boards.org/snapshots/reference-platform/components/debian-installer-staging/latest/)
 ```shell
 sudo su -
 cd /srv/tftp/
@@ -60,6 +63,28 @@ Now just make sure that `/etc/dnsmasq.conf` is pointing out to the right boot fi
 ```shell
 dhcp-boot=debian-installer/arm64/bootnetaa64.efi
 ```
+Or:
+```shell
+$ cat /etc/dhcp/dhcpd.conf
+  # Sample /etc/dhcpd.conf
+    # (add your comments here)
+    default-lease-time 600;
+    max-lease-time 7200;
+    subnet 192.168.1.0 netmask 255.255.255.0 {
+    range 192.168.1.210 192.168.1.250;
+    option subnet-mask 255.255.255.0;
+    option domain-name-servers 192.168.1.1;
+    option routers 192.168.1.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 192.168.1.255;
+    # Change the filename according to your real local environment and target board type.
+    # And make sure the file has been put in tftp root directory.
+    # grubaa64.efi is for ARM64 architecture.
+    # grubarm32.efi is for ARM32 architecture.
+    filename "debian-installer/arm64/bootnetaa64.efi";
+    #next-server 192.168.1.107
+    }
+```
 ## Loading debian-installer from the minimal CD
 
 Together with the debian-installer netboot files, a minimal ISO is also provided containing the same installer, which can be loaded as normal boot disk media.
@@ -68,7 +93,7 @@ Making a bootable SATA disk / USB stick / microSD card (attention to **/dev/sdX*
 
 ```
 wget https://builds.96boards.org/releases/reference-platform/components/debian-installer/16.06/mini.iso
-sudo cp mini.iso /dev/sdX
+sudo dd if=mini.iso of=/dev/sdX
 sync
 ```
 
@@ -192,45 +217,68 @@ Check [example-preseed.txt](https://www.debian.org/releases/jessie/example-prese
 Once created, make sure the file gets published into a network address that can be reachable from your target device.
 
 Preseed example (`preseed.cfg`):
-
-```shell
-d-i debian-installer/locale string en_US
+```bash
+d-i debian-installer/language string en
+d-i debian-installer/country string CN
+d-i debian-installer/locale string en_US.UTF-8
 d-i keyboard-configuration/xkb-keymap select us
+d-i netcfg/choose_interface select eth0
 d-i netcfg/dhcp_timeout string 60
 d-i netcfg/get_hostname string unassigned-hostname
 d-i netcfg/get_domain string unassigned-domain
 d-i netcfg/hostname string debian
+d-i netcfg/wireless_wep string
 d-i mirror/country string manual
-d-i mirror/http/hostname string httpredir.debian.org
+d-i mirror/http/hostname string ftp.cn.debian.org
 d-i mirror/http/directory string /debian
 d-i mirror/http/proxy string
-d-i passwd/root-password password linaro123
-d-i passwd/root-password-again password linaro123
+d-i passwd/root-password password root
+d-i passwd/root-password-again password root
 d-i passwd/user-fullname string Linaro User
 d-i passwd/username string linaro
 d-i passwd/user-password password linaro
 d-i passwd/user-password-again password linaro
 d-i passwd/user-default-groups string audio cdrom video sudo
-d-i time/zone string UTC
-d-i clock-setup/ntp boolean true
 d-i clock-setup/utc boolean true
+d-i time/zone string Asia/Shanghai
+d-i clock-setup/ntp boolean true
 d-i partman-auto/disk string /dev/sda
-d-i partman-auto/method string regular
+d-i partman-auto/method string lvm
 d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
 d-i partman-auto/choose_recipe select atomic
-d-i partman/confirm_write_new_label boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
 d-i partman/confirm_nooverwrite boolean true
-popularity-contest popularity-contest/participate boolean false
+d-i partman-md/confirm boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+d-i anna/no_kernel_modules boolean true
+d-i base-installer/kernel/skip-install boolean true
+d-i base-installer/kernel/no-kernels-found boolean true
+d-i apt-setup/services-select multiselect security, updates, backports
+d-i apt-setup/local0/repository string http://repo.linaro.org/ubuntu/linaro-overlay jessie main
+d-i apt-setup/local0/comment string Linaro Overlay
+d-i apt-setup/local0/source boolean true
+d-i apt-setup/local0/key string http://repo.linaro.org/ubuntu/linarorepo.key
+d-i apt-setup/local1/repository string http://repo.linaro.org/ubuntu/linaro-staging jessie main
+d-i apt-setup/local1/comment string Linaro Staging
+d-i apt-setup/local1/source boolean true
+d-i apt-setup/local1/key string http://repo.linaro.org/ubuntu/linarorepo.key
+d-i pkgsel/upgrade select full-upgrade
+d-i preseed/late_command string in-target apt-get install -y linux-image-reference-arm64
 tasksel tasksel/first multiselect standard, web-server
 d-i pkgsel/include string openssh-server build-essential ca-certificates sudo vim ntp
-d-i pkgsel/upgrade select safe-upgrade
+d-i grub-installer/only_debian boolean true
+d-i debian-installer/add-kernel-opts string console=ttyS0,115200 earlycon=hisilpcuart,mmio,0xa01b0000,0,0x2f8 pcie_aspm=off ip=dhcp
 d-i finish-install/reboot_in_progress note
 ```
-
-In this example, this content is also available at [http://people.linaro.org/~ricardo.salveti/preseed.cfg](http://people.linaro.org/~ricardo.salveti/preseed.cfg)
+In this example, this content is also available at [https://github.com/luckyxinshidai/hello-world/blob/master/test/preseed.cfg](https://github.com/luckyxinshidai/hello-world/blob/master/test/preseed.cfg)
 
 #### Setting up grub.cfg
 
@@ -242,14 +290,14 @@ $ cat /srv/tftp/debian-installer/arm64/grub/grub.cfg
 set default=0
 set timeout=1
 menuentry 'Install with preseeding' {
-    linux    /debian-installer/arm64/linux auto=true priority=critical url=http://people.linaro.org/~ricardo.salveti/preseed.cfg ---
+    linux    /debian-installer/arm64/linux console=ttyS0,115200 earlycon=hisilpcuart,mmio,0xa01b0000,0,0x2f8 pcie_aspm=off ip=dhcp interface=eth0 auto=true priority=critical url=http://people.linaro.org/~ricardo.salveti/preseed.cfg
     initrd   /debian-installer/arm64/initrd.gz
 }
 ```
 
 The `auto` kernel parameter is an alias for `auto-install/enable` and setting it to `true` delays the locale and keyboard questions until after there has been a chance to preseed them, while `priority` is an alias for `debconf/priority` and setting it to `critical` stops any questions with a lower priority from being asked.
 
-In case your system contains more than one network interface, also make sure to add the one to be used via the `interface` argument, like `interface=eth1`.
+In case your system contains more than one network interface, also make sure to add the one to be used via the `interface` argument, like `interface=eth0`.
 
 #### Booting the system
 
